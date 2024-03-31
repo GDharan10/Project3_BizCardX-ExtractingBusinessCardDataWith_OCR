@@ -1,1 +1,1 @@
-# Project3_BizCardX-ExtractingBusinessCardDataWith_OCR
+# BizCardX: Extracting Business Card Data with OCR
