@@ -4,11 +4,14 @@ from PIL import Image
 import io
 import re
 import pandas as pd
+from sqlalchemy import create_engine 
 
+engine = create_engine("postgresql+psycopg2://postgres:1005@localhost/bizcardx_data")
 
 # Reading image using easy ocr
 reader = easyocr.Reader(['en'], gpu=False)
 image_path = "C:\\GD\\Notes\\DS Class\\DTM15\\Project\\Guvi project\\3 BizCardX Extracting Business Card Data with OCR\\Business Cards\\1.png"
+# Extracting text from image
 image_data = reader.readtext(image_path, detail = 0)
 # Load the image
 image = Image.open(image_path)
@@ -80,7 +83,15 @@ def extracted_text(details):
             data["company"].append(details[i])
     
     data["contact"] = [" & ".join(data["contact"])]
-    # Join company names with comma and space
+    # Join company names with space
     data["company"] = [" ".join(data["company"])]
     return data
+
+# converting to dictionary
+data = extracted_text(image_data)
+# Converting dictionary to DataFrame
+df = pd.DataFrame(data)
+# Storing DataFrame in SQL table
+df.to_sql('business_card', engine, if_exists='append', index=False)
+
 
