@@ -16,28 +16,30 @@ engine = create_engine("postgresql+psycopg2://postgres:1005@localhost/bizcardx_d
 # Reading image using easy ocr
 reader = easyocr.Reader(['en'], gpu=False)
 image_path = "C:\\GD\\Notes\\DS Class\\DTM15\\Project\\Guvi project\\3 BizCardX Extracting Business Card Data with OCR\\Business Cards\\1.png"
-# Extracting text from image
-image_data = reader.readtext(image_path, detail = 0)
+
 # Load the image
 image = Image.open(image_path)
 # Convert RGBA image to RGB
 image = image.convert('RGB')
 
 
-def extracted_text(details):
+def extracted_text(image_path):
+    # Extracting text from image
+    details = reader.readtext(image_path, detail = 0)
+
     data = {
-        "name": [],
-        "designation": [],
+        "name": "",
+        "designation": "",
         "contact": [],
-        "email": [],
-        "website": [],
-        "street": [],
-        "city": [],
-        "state": [],
-        "pincode": [],
+        "email": "",
+        "website": "",
+        "street": "",
+        "city": "",
+        "state": "",
+        "pincode": "",
         "company": []
     }
-    
+
     for i in range(len(details)):
         match1 = re.findall('([0-9]+ [A-Z]+ [A-Za-z]+)., ([a-zA-Z]+). ([a-zA-Z]+)', details[i])
         match2 = re.findall('([0-9]+ [A-Z]+ [A-Za-z]+)., ([a-zA-Z]+)', details[i])
@@ -47,41 +49,41 @@ def extracted_text(details):
         match6 = re.findall('.com$', details[i])
         match7 = re.findall('([0-9]+)', details[i])
         if i == 0:
-            data["name"].append(details[i])
+            data["name"] = details[i]
         elif i == 1:
-            data["designation"].append(details[i])
+            data["designation"] = details[i]
         elif '-' in details[i]:
             data["contact"].append(details[i])
         elif '@' in details[i]:
-            data["email"].append(details[i])
+            data["email"] = details[i]
         elif "www " in details[i].lower() or "www." in details[i].lower():
-            data["website"].append(details[i])
+            data["website"] = details[i]
         elif "WWW" in details[i]:
-            data["website"].append(details[i] + "." + details[i+1])
+            data["website"] = details[i] + "." + details[i+1]
         elif match6:
             pass
         elif match1:
-            data["street"].append(match1[0][0])
-            data["city"].append(match1[0][1])
-            data["state"].append(match1[0][2])
+            data["street"] = match1[0][0]
+            data["city"] = match1[0][1]
+            data["state"] = match1[0][2]
         elif match2:
-            data["street"].append(match2[0][0])
-            data["city"].append(match2[0][1])
+            data["street"] = match2[0][0]
+            data["city"] = match2[0][1]
         elif match3:
-            data["city"].append(match3[0])
+            data["city"] = match3[0]
         elif match4:
-            data["state"].append(match4[0][0])
-            data["pincode"].append(match4[0][1])
+            data["state"] = match4[0][0]
+            data["pincode"] = match4[0][1]
         elif match5:
-            data["street"].append(match5[0] + ' St,')
+            data["street"] = match5[0] + ' St,'
         elif match7:
-            data["pincode"].append(match7[0])
+            data["pincode"] = match7[0]
         else:
             data["company"].append(details[i])
-    
-    data["contact"] = [" & ".join(data["contact"])]
-    # Join company names with space
-    data["company"] = [" ".join(data["company"])]
+
+    data["contact"] = " & ".join(data["contact"])
+    # Join company names with comma and space
+    data["company"] = " ".join(data["company"])
     return data
 
 def store_data(data):
@@ -89,7 +91,7 @@ def store_data(data):
     df = pd.DataFrame(data)
     # Storing DataFrame in SQL table
     df.to_sql('business_card', engine, if_exists='append', index=False)
-
+    return df
 
 
 # Streamlit part
@@ -164,50 +166,38 @@ with col2:
             col3,col4 = st.columns([2,2])
             with col3:
                 uploaded_file = st.file_uploader("**Choose a file**", type=["jpg", "png", "jpeg"])
-                extract = st.button("Extract and Upload")
+                extract = st.button("Extract")
                 if uploaded_file is not None:
                     image_path = os.getcwd()+ "\\"+"Business Cards"+"\\"+ uploaded_file.name
                     image = Image.open(image_path)
                     col3.image(image)
                     path = True
-            
+
+                if extract:
+                    image_details = extracted_text(image_path)
+                    upload = st.button("Upload")
+                    if upload:
+                        df = store_data(image_details)
+                        st.write(df)
+                        st.success("Uploaded successfully")
+
+
             with col4:
                     st.write('')
                     st.write('')
                     st.info(f'''i) Kindly upload the image in JPG, PNG, or JPEG format.       
                             ii) Click the "**Extract and Upload**" button to extract text from the image and upload the extracted text details to the database.''', icon="ℹ️")
-                    if path:                
-                        image_details = extracted_text(image_path)
+                    if path:
+                                            
                         if extract:
-                            img = cv2.imread(image_path)
-                            reader = easyocr.Reader(['en'])
-                            result = reader.readtext(image_path)
-                            for detection in result:    
-                                top_left =tuple([int(val) for val in detection[0][0]])
-                                bottom_right =tuple([int(val) for val in detection[0][2]])
-                                text = detection[1]
-                                font =cv2.FONT_HERSHEY_SIMPLEX
-                                img = cv2.rectangle(img, top_left, bottom_right, (0,255,0), 2)
-                                img = cv2.putText(img, text, top_left, font, 1, (255,0,0),1, cv2.LINE_AA)
-                                plt.figure(figsize=(20,20))
-                                
-                            st.write("")
-                            st.write("")
-                            st.subheader("Extracted Text")
-                            st.image(img)            
-                            
-                        with col3:
-                            if extract:
-                                st.write('**Name** :',image_details['name'])
-                                st.write('**Designation** :', image_details['designation'])
-                                st.write('**Company Name** :', image_details['company'])
-                                st.write('**Contact Number** :', image_details['contact'])
-                                st.write('**E-mail** :', image_details['email'])
-                        with col4:
-                            if extract:
-                                st.write('**Website** :', image_details['website'])
-                                st.write('**Street** :', image_details['street'])
-                                st.write('**City** :', image_details['city'])
-                                st.write('**State** :', image_details['state'])
-                                st.write('**Pincode** :', image_details['pincode'])
-                                
+                            st.write('**Name** :',image_details['name'])
+                            st.write('**Designation** :', image_details['designation'])
+                            st.write('**Company Name** :', image_details['company'])
+                            st.write('**Contact Number** :', image_details['contact'])
+                            st.write('**E-mail** :', image_details['email'])
+                            st.write('**Website** :', image_details['website'])
+                            st.write('**Street** :', image_details['street'])
+                            st.write('**City** :', image_details['city'])
+                            st.write('**State** :', image_details['state'])
+                            st.write('**Pincode** :', image_details['pincode'])
+            
