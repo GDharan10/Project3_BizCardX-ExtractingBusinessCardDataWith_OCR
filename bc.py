@@ -1,32 +1,37 @@
 # Package
+# File: image_processing.py
 import easyocr
 from PIL import Image
-import io
 import re
+# File: database.py
 import pandas as pd
-from sqlalchemy import create_engine 
-import streamlit as st
-from streamlit_option_menu import option_menu
+from sqlalchemy import create_engine
+# File: app.py
 import os
+import streamlit as st
+from PIL import Image
+from streamlit_option_menu import option_menu
+#from image_processing import extract_text, process_text
+#from database import store_data
+
+import io
 import cv2
 import matplotlib.pyplot as plt
 
+# Create a database engine
 engine = create_engine("postgresql+psycopg2://postgres:1005@localhost/bizcardx_data")
 
-# Reading image using easy ocr
-reader = easyocr.Reader(['en'], gpu=False)
-image_path = "C:\\GD\\Notes\\DS Class\\DTM15\\Project\\Guvi project\\3 BizCardX Extracting Business Card Data with OCR\\Business Cards\\1.png"
+# Create a connection
+conn = engine.connect()
 
-# Load the image
-image = Image.open(image_path)
-# Convert RGBA image to RGB
-image = image.convert('RGB')
-
-
-def extracted_text(image_path):
+def extract_text(image_path):
+    reader = easyocr.Reader(['en'], gpu=False)
+    image = Image.open(image_path).convert('RGB')
     # Extracting text from image
-    details = reader.readtext(image_path, detail = 0)
+    details = reader.readtext(image_path, detail=0)
+    return details
 
+def process_text(details):
     data = {
         "name": "",
         "designation": "",
@@ -86,9 +91,10 @@ def extracted_text(image_path):
     data["company"] = " ".join(data["company"])
     return data
 
+
 def store_data(data):
     # Converting dictionary to DataFrame
-    df = pd.DataFrame(data)
+    df = pd.DataFrame([data]) # Wrap data in a list to create DataFrame
     # Storing DataFrame in SQL table
     df.to_sql('business_card', engine, if_exists='append', index=False)
     return df
@@ -161,25 +167,30 @@ with col2:
 
     if menu == 'Upload':
         
+        
         path = False
+        
         if upload_menu == 'Predefined':
             col3,col4 = st.columns([2,2])
             with col3:
                 uploaded_file = st.file_uploader("**Choose a file**", type=["jpg", "png", "jpeg"])
-                extract = st.button("Extract")
+                
                 if uploaded_file is not None:
                     image_path = os.getcwd()+ "\\"+"Business Cards"+"\\"+ uploaded_file.name
                     image = Image.open(image_path)
                     col3.image(image)
                     path = True
 
-                if extract:
-                    image_details = extracted_text(image_path)
+                    extract = st.button("Extract")
+                              
                     upload = st.button("Upload")
                     if upload:
-                        df = store_data(image_details)
-                        st.write(df)
-                        st.success("Uploaded successfully")
+                        if path:
+                            image_details = extract_text(image_path)
+                            processed_details = process_text(image_details)
+                            df = store_data(processed_details)
+                            st.write(df)
+                            st.success("Uploaded successfully")
 
 
             with col4:
@@ -188,16 +199,54 @@ with col2:
                     st.info(f'''i) Kindly upload the image in JPG, PNG, or JPEG format.       
                             ii) Click the "**Extract and Upload**" button to extract text from the image and upload the extracted text details to the database.''', icon="ℹ️")
                     if path:
-                                            
                         if extract:
-                            st.write('**Name** :',image_details['name'])
-                            st.write('**Designation** :', image_details['designation'])
-                            st.write('**Company Name** :', image_details['company'])
-                            st.write('**Contact Number** :', image_details['contact'])
-                            st.write('**E-mail** :', image_details['email'])
-                            st.write('**Website** :', image_details['website'])
-                            st.write('**Street** :', image_details['street'])
-                            st.write('**City** :', image_details['city'])
-                            st.write('**State** :', image_details['state'])
-                            st.write('**Pincode** :', image_details['pincode'])
-            
+                            image_details = extract_text(image_path)
+                            processed_details = process_text(image_details)
+                            st.write('**Name** :', processed_details['name'])
+                            st.write('**Designation** :', processed_details['designation'])
+                            st.write('**Company Name** :', processed_details['company'])
+                            st.write('**Contact Number** :', processed_details['contact'])
+                            st.write('**E-mail** :', processed_details['email'])
+                            st.write('**Website** :', processed_details['website'])
+                            st.write('**Street** :', processed_details['street'])
+                            st.write('**City** :', processed_details['city'])
+                            st.write('**State** :', processed_details['state'])
+                            st.write('**Pincode** :', processed_details['pincode'])
+
+    if menu == 'Database':
+        # Read data from the 'business_card' table into a DataFrame
+        df = pd.read_sql('business_card', engine)
+        st.header("Database")                    
+        st.dataframe(df)
+        st.button('Show Changes')
+
+        if Database_menu == 'Modify':
+            modify_col,display = st.columns([1,1])
+            with modify_col:
+                names= ['','name','designation','email','company_name']
+                selected = st.selectbox('**Select Categories**',names)
+                if selected != '':
+                        select = df[selected]
+                        select_detail = st.selectbox('**Select Details**', select)
+                        st.header('Select the modify details')
+                        df1 = df[df[selected] == select_detail]
+                        df1 = df1.reset_index()
+                        select_modify = st.selectbox('**Select categories**', df.columns)
+                        a = df1[select_modify][0]            
+                        st.write(f'Do you want to change {select_modify}: **{a}** ?')
+                        modified = st.text_input(f'**Enter the {select_modify}**')
+                        if modified:
+                            st.write(f'{select_modify} **{a}** changed as **{modified}**')
+                        if st.button("Commit Changes"):
+                            # Define the update statement
+                            update_statement = f"UPDATE bizcardx_data SET {select_modify} = '{modified}' WHERE {selected} = '{select_detail}'"
+
+                            try:
+                                # Execute the update statement directly
+                                with engine.connect() as conn:
+                                    conn.execute(update_statement)
+                                st.success("Data successfully updated ✅")
+                            except Exception as e:
+                                # Handle exceptions
+                                st.error(f"Error updating data: {e}")
+
