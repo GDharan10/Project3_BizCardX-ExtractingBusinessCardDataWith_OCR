@@ -1,28 +1,27 @@
 # Package
-# File: image_processing.py
+# image_processing
 import easyocr
 from PIL import Image
 import re
-# File: database.py
+# database
 import pandas as pd
-from sqlalchemy import create_engine
-# File: app.py
+from sqlalchemy import create_engine, update, MetaData, Table
+# app
 import os
 import streamlit as st
-from PIL import Image
 from streamlit_option_menu import option_menu
-#from image_processing import extract_text, process_text
-#from database import store_data
 
-import io
-import cv2
-import matplotlib.pyplot as plt
 
-# Create a database engine
+# Creating a database engine
 engine = create_engine("postgresql+psycopg2://postgres:1005@localhost/bizcardx_data")
-
-# Create a connection
+# Creating a connection
 conn = engine.connect()
+# Reflecting the existing database schema
+metadata = MetaData()
+metadata.reflect(bind=engine)
+# Accessing the 'business_card' table from the reflected metadata
+business_card_table = Table('business_card', metadata, autoload=True, autoload_with=engine)
+
 
 def extract_text(image_path):
     reader = easyocr.Reader(['en'], gpu=False)
@@ -87,7 +86,7 @@ def process_text(details):
             data["company"].append(details[i])
 
     data["contact"] = " & ".join(data["contact"])
-    # Join company names with comma and space
+    # Joining company names with space
     data["company"] = " ".join(data["company"])
     return data
 
@@ -109,7 +108,7 @@ text = 'BizCardX'
 st.markdown(f"<h2 style='color: white; text-align: center;'>{text} </h2>", unsafe_allow_html=True)
 
 st.markdown(f""" <style>.stApp {{
-                    background: url('https://img.freepik.com/free-vector/gradient-golden-luxury-business-card-template_23-2149035722.jpg?w=740&t=st=1712021022~exp=1712021622~hmac=af788945480688006d710a5bda024f6d2b87d50990c0edd91b1e0c7c4b205ddf');   
+                    background: url('https://images.unsplash.com/photo-1468657988500-aca2be09f4c6?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');   
                     background-size: cover}}
                  </style>""",unsafe_allow_html=True)
 
@@ -122,14 +121,6 @@ with col1:
                     styles={"icon": {"color": "orange", "font-size": "20px"},
                             "nav-link": {"font-size": "15px", "text-align": "left", "margin": "-2px", "--hover-color": "#FFFFFF"},
                             "nav-link-selected": {"background-color": "#225154"}})
-    if menu == 'Upload':
-        upload_menu = option_menu("Upload", ['Predefined','Undefined'],                        
-                        menu_icon='cloud-upload',
-                        default_index=0,
-                        styles={"icon": {"color": "orange", "font-size": "20px"},
-                                "nav-link": {"font-size": "15px", "text-align": "left", "margin": "-2px", "--hover-color": "#FFFFFF"},
-                                "nav-link-selected": {"background-color": "#225154"}})
-    
     if menu == 'Database':
         Database_menu = option_menu("Database", ['Modify','Delete'], 
                         
@@ -143,75 +134,70 @@ with col1:
 
 with col2:
     if menu == 'Home':
-        col3,col4 = st.columns([3,2])
-        with col3:
-            st.header('Welcome to business card application')
-            st.subheader(':orange[About the App:]')
-            home_text = (f'''In this Streamlit web app, you can upload an image of a business 
-                         card and extract relevant information from it using EasyOCR. You can view, 
-                         modify, or delete the extracted data in this app. Additionally, the app would 
-                         allow users to save the extracted information into a database alongside the 
-                         uploaded business card image. The database would be capable of storing multiple 
-                         entries, each with its own business card image and the extracted information.''')
-                         
-            st.markdown(f"<h4 text-align: left;'>{home_text} </h4>", unsafe_allow_html=True)
-            st.subheader(":orange[Technologies Used:]")
-            tech_text =('  EasyOCR, Python, SQL, Streamlit')
-            st.markdown(f"<h4 text-align: left;'>{tech_text} </h4>", unsafe_allow_html=True)
-        with col4:
-            home_image = Image.open('C:\\GD\\Notes\\DS Class\\DTM15\\Project\\Guvi project\\3 BizCardX Extracting Business Card Data with OCR\\Business Cards\\blue.jpg')
-            st.write('')
-            st.write('')
-            st.image(home_image)
+        st.header('Welcome to BizCardX')
+        home_text = ('This app helps you extract and manage business card details efficiently.')
+        st.markdown(f"<h4 text-align: left;'>{home_text} </h4>", unsafe_allow_html=True)
+        st.subheader(':orange[About the App:]')
+        above_text = ('''BizCardX is a Streamlit web application designed for extracting information 
+                     from business cards. It utilizes OCR (Optical Character Recognition) to extract 
+                     text from uploaded images of business cards. The extracted details are then processed 
+                     and organized into categories such as name, designation, contact information, company 
+                     name, email, website, address, etc. Users can upload images of business cards, and the app 
+                     extracts relevant information for storage and management.')
+                    ''')
+                        
+        st.markdown(f"<h4 text-align: left;'>{above_text} </h4>", unsafe_allow_html=True)
+        st.subheader(":orange[Technologies Used:]")
+        tech_text =(''' The app is built using Python and several libraries, including Streamlit for the web 
+                    interface, EasyOCR for optical character recognition, and SQLAlchemy for database operations. 
+                    The user interface is designed to be intuitive, allowing users to easily upload business card images, 
+                    extract details, and manage the stored data. ''')
+        st.markdown(f"<h4 text-align: left;'>{tech_text} </h4>", unsafe_allow_html=True)
 
 
     if menu == 'Upload':
         
-        
         path = False
-        
-        if upload_menu == 'Predefined':
-            col3,col4 = st.columns([2,2])
-            with col3:
-                uploaded_file = st.file_uploader("**Choose a file**", type=["jpg", "png", "jpeg"])
-                
-                if uploaded_file is not None:
-                    image_path = os.getcwd()+ "\\"+"Business Cards"+"\\"+ uploaded_file.name
-                    image = Image.open(image_path)
-                    col3.image(image)
-                    path = True
+        col3,col4 = st.columns([2,2])
+        with col3:
+            uploaded_file = st.file_uploader("**Choose a file**", type=["jpg", "png", "jpeg"])
+            
+            if uploaded_file is not None:
+                image_path = os.getcwd()+ "\\"+"Business Cards"+"\\"+ uploaded_file.name
+                image = Image.open(image_path)
+                col3.image(image)
+                path = True
 
-                    extract = st.button("Extract")
-                              
-                    upload = st.button("Upload")
-                    if upload:
-                        if path:
-                            image_details = extract_text(image_path)
-                            processed_details = process_text(image_details)
-                            df = store_data(processed_details)
-                            st.write(df)
-                            st.success("Uploaded successfully")
+                extract = st.button("Extract")
+                            
+                upload = st.button("Upload")
+        if upload:
+            if path:
+                image_details = extract_text(image_path)
+                processed_details = process_text(image_details)
+                df = store_data(processed_details)
+                st.write(df)
+                st.success("Uploaded successfully")
 
 
-            with col4:
-                    st.write('')
-                    st.write('')
-                    st.info(f'''i) Kindly upload the image in JPG, PNG, or JPEG format.       
-                            ii) Click the "**Extract and Upload**" button to extract text from the image and upload the extracted text details to the database.''', icon="ℹ️")
-                    if path:
-                        if extract:
-                            image_details = extract_text(image_path)
-                            processed_details = process_text(image_details)
-                            st.write('**Name** :', processed_details['name'])
-                            st.write('**Designation** :', processed_details['designation'])
-                            st.write('**Company Name** :', processed_details['company'])
-                            st.write('**Contact Number** :', processed_details['contact'])
-                            st.write('**E-mail** :', processed_details['email'])
-                            st.write('**Website** :', processed_details['website'])
-                            st.write('**Street** :', processed_details['street'])
-                            st.write('**City** :', processed_details['city'])
-                            st.write('**State** :', processed_details['state'])
-                            st.write('**Pincode** :', processed_details['pincode'])
+        with col4:
+                st.info('''i) Kindly upload the image in JPG, PNG or JPEG format.       
+                        ii) Click the "**Extract**" button to extract text from the image.              
+                        iii) Click the "**Upload**" upload the extracted text details to the database. ''', icon="ℹ️")
+                if path:
+                    if extract:
+                        image_details = extract_text(image_path)
+                        processed_details = process_text(image_details)
+                        st.write('**Name** :', processed_details['name'])
+                        st.write('**Designation** :', processed_details['designation'])
+                        st.write('**Company Name** :', processed_details['company'])
+                        st.write('**Contact Number** :', processed_details['contact'])
+                        st.write('**E-mail** :', processed_details['email'])
+                        st.write('**Website** :', processed_details['website'])
+                        st.write('**Street** :', processed_details['street'])
+                        st.write('**City** :', processed_details['city'])
+                        st.write('**State** :', processed_details['state'])
+                        st.write('**Pincode** :', processed_details['pincode'])
 
     if menu == 'Database':
         # Read data from the 'business_card' table into a DataFrame
@@ -221,32 +207,61 @@ with col2:
         st.button('Show Changes')
 
         if Database_menu == 'Modify':
-            modify_col,display = st.columns([1,1])
-            with modify_col:
-                names= ['','name','designation','email','company_name']
+            modify_col_1,modify_col_2 = st.columns([1,1])
+            with modify_col_1:
+                st.header('Choose where to modify the details.')
+                names= ['Please select one','name','contact','email']
                 selected = st.selectbox('**Select Categories**',names)
-                if selected != '':
-                        select = df[selected]
-                        select_detail = st.selectbox('**Select Details**', select)
-                        st.header('Select the modify details')
-                        df1 = df[df[selected] == select_detail]
-                        df1 = df1.reset_index()
-                        select_modify = st.selectbox('**Select categories**', df.columns)
-                        a = df1[select_modify][0]            
-                        st.write(f'Do you want to change {select_modify}: **{a}** ?')
-                        modified = st.text_input(f'**Enter the {select_modify}**')
-                        if modified:
-                            st.write(f'{select_modify} **{a}** changed as **{modified}**')
-                        if st.button("Commit Changes"):
-                            # Define the update statement
-                            update_statement = f"UPDATE bizcardx_data SET {select_modify} = '{modified}' WHERE {selected} = '{select_detail}'"
+                if selected != 'Please select one':
+                        select = ['Please select one'] + list(df[selected])
+                        select_detail = st.selectbox(f'**Select the {selected}**', select)
+                        
+                        with modify_col_2:
+                            if select_detail != 'Please select one':
+                                st.header('Choose what details to modify.')
+                                df1 = df[df[selected] == select_detail]
+                                df1 = df1.reset_index()
+                                select_modify = st.selectbox('**Select categories**', ['Please select one'] + list(df.columns))
+                                if select_modify != 'Please select one':
+                                    a = df1[select_modify][0]            
+                                    st.write(f'Do you want to change {select_modify}: **{a}** ?')
+                                    modified = st.text_input(f'**Enter the {select_modify} to be modified.**')
+                                    if modified:
+                                        st.write(f'{select_modify} **{a}** will change as **{modified}**')
+                                        with modify_col_1:
+                                            if st.button("Commit Changes"):
+                                                # Define the update statement
+                                                update_statement = (
+                                                                    update(business_card_table)
+                                                                    .where(business_card_table.c[selected] == select_detail)
+                                                                    .values({select_modify: modified})
+                                                                )
+                                                # Executing the update statement
+                                                conn.execute(update_statement)
+                                                conn.commit()
+                                                st.success("Changes committed successfully!")
+            
+        if Database_menu == 'Delete':
+            names= ['Please select one','name','email']
+            delete_selected = st.selectbox('**Select where to delete the details**',names) 
+            if delete_selected != 'Please select one':
+                select = df[delete_selected]
+                delete_select_detail = st.selectbox(f'**Select the {delete_selected} to remove**', ['Please select one'] + list(select))
+                if delete_select_detail != 'Please select one':
+                    st.write(f'Do you want to delete **{delete_select_detail}** card details ?')
+                    col5,col6,col7 =st.columns([1,1,5])
+                    delete = col5.button('Yes I do')
+                    if delete:
+                        delete_query = (
+                                        business_card_table.delete()
+                                        .where(business_card_table.c[delete_selected] == delete_select_detail)
+                                        )
 
-                            try:
-                                # Execute the update statement directly
-                                with engine.connect() as conn:
-                                    conn.execute(update_statement)
-                                st.success("Data successfully updated ✅")
-                            except Exception as e:
-                                # Handle exceptions
-                                st.error(f"Error updating data: {e}")
+                        # Execute the delete statement
+                        conn.execute(delete_query)
+                        conn.commit()
+                        st.success("Data Deleted successfully", icon ='✅')
+                   
+            
+                                                                        
 
